@@ -1,0 +1,266 @@
+@import "../node_modules/@syncfusion/ej2-tailwind3-theme/styles/ribbon/index.css";
+@import "../node_modules/@syncfusion/ej2-tailwind3-theme/styles/document-editor/index.css";
+@import "../node_modules/@syncfusion/ej2-tailwind3-theme/styles/document-editor-container/index.css";
+
+/* POC shell layout */
+.poc-shell {
+    font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
+    min-height: 100vh;
+    display: flex;
+    flex-direction: column;
+}
+
+.poc-header {
+    padding: 12px 16px;
+    border-bottom: 1px solid #e5e7eb;
+    background: #f9fafb;
+}
+
+.poc-header h1 {
+    margin: 0;
+    font-size: 1.25rem;
+    color: #111827;
+}
+
+.poc-header p {
+    margin: 4px 0 0;
+    font-size: 0.875rem;
+    color: #6b7280;
+}
+
+.poc-body {
+    display: flex;
+    gap: 12px;
+    padding: 12px;
+    align-items: flex-start;
+    flex: 1;
+}
+
+.poc-panel {
+    width: 240px;
+    flex-shrink: 0;
+    border: 1px solid #e5e7eb;
+    border-radius: 6px;
+    padding: 12px;
+    background: #fff;
+}
+
+.poc-panel h2 {
+    margin: 0 0 10px;
+    font-size: 1rem;
+    color: #111827;
+}
+
+.poc-fields {
+    width: 220px;
+}
+
+.poc-cases {
+    width: 320px;
+}
+
+.poc-editor {
+    flex: 1;
+    min-width: 0;
+}
+
+/* Merge field explorer */
+.poc-group-header {
+    font-weight: 600;
+    color: #374151;
+    margin: 8px 0 4px;
+    font-size: 0.875rem;
+}
+
+.poc-field {
+    display: block;
+    width: 100%;
+    text-align: left;
+    background: #f3f4f6;
+    color: #111827;
+    border: 1px solid #e5e7eb;
+    border-radius: 4px;
+    padding: 6px 10px;
+    margin: 2px 0;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.poc-field:hover {
+    background: #e5e7eb;
+}
+
+/* Search + table */
+.poc-search-row {
+    display: flex;
+    gap: 6px;
+    margin-bottom: 10px;
+}
+
+.poc-input {
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    padding: 6px 8px;
+    font-size: 0.875rem;
+    flex: 1;
+    min-width: 0;
+}
+
+.poc-btn {
+    background: #f3f4f6;
+    color: #111827;
+    border: 1px solid #d1d5db;
+    border-radius: 4px;
+    padding: 6px 14px;
+    font-size: 0.875rem;
+    cursor: pointer;
+}
+
+.poc-btn:hover {
+    background: #e5e7eb;
+}
+
+.poc-btn:disabled {
+    opacity: 0.6;
+    cursor: not-allowed;
+}
+
+.poc-btn-primary {
+    background: #2563eb;
+    border-color: #2563eb;
+    color: #fff;
+}
+
+.poc-btn-primary:hover {
+    background: #1d4ed8;
+}
+
+.poc-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.poc-table th,
+.poc-table td {
+    border: 1px solid #e5e7eb;
+    padding: 6px 8px;
+    text-align: left;
+}
+
+.poc-table th {
+    background: #f9fafb;
+    color: #374151;
+}
+
+.poc-col-check {
+    width: 48px;
+    text-align: center;
+}
+
+.poc-selected {
+    margin: 10px 0;
+    font-weight: 600;
+    color: #111827;
+}
+
+.poc-muted {
+    color: #6b7280;
+    font-size: 0.8125rem;
+}
+
+/* Missing field dialog */
+.poc-dialog-backdrop {
+    position: fixed;
+    inset: 0;
+    background: rgba(17, 24, 39, 0.45);
+    display: flex;
+    align-items: center;
+    justify-content: center;
+    z-index: 1000;
+}
+
+.poc-dialog {
+    background: #fff;
+    border-radius: 8px;
+    padding: 20px;
+    width: min(480px, 92vw);
+    max-height: 80vh;
+    overflow: auto;
+}
+
+.poc-dialog h2 {
+    margin: 0 0 6px;
+    font-size: 1.125rem;
+    color: #111827;
+}
+
+.poc-missing-list {
+    margin: 12px 0;
+}
+
+.poc-missing-item {
+    display: block;
+    margin: 10px 0;
+    font-size: 0.875rem;
+    color: #111827;
+}
+
+.poc-missing-item input {
+    display: block;
+    margin-top: 4px;
+}
+
+.poc-dialog-actions {
+    display: flex;
+    justify-content: flex-end;
+    gap: 8px;
+    margin-top: 16px;
+}
+/* Region authoring actions */
+.poc-field-region {
+    background: #eef2ff;
+    border-color: #c7d2fe;
+    color: #4338ca;
+    font-weight: 600;
+}
+
+.poc-field-region:hover {
+    background: #e0e7ff;
+}
+
+.poc-btn-region {
+    width: 100%;
+    margin-top: 10px;
+    background: #eef2ff;
+    border-color: #c7d2fe;
+    color: #4338ca;
+}
+
+/* Left-panel manual merge field / region creation */
+.poc-manual-section {
+    margin-top: 12px;
+}
+
+.poc-manual-section h3 {
+    margin: 0 0 6px;
+    font-size: 0.875rem;
+    color: #111827;
+}
+
+.poc-divider {
+    border-top: 1px solid #e5e7eb;
+    margin-bottom: 10px;
+}
+
+.poc-label {
+    display: block;
+    font-size: 0.8125rem;
+    color: #374151;
+    margin-bottom: 6px;
+}
+
+.poc-btn-block {
+    display: block;
+    width: 100%;
+}
