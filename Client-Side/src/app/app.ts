@@ -30,7 +30,6 @@ interface SchemaGroupView {
 }
 
 /**
- * Notice of Hearing POC.
  *
  * Startup: schema loads and the bundled sample template opens in the editor, so the
  * user can immediately search, select cases and generate (no blank editor).
@@ -56,8 +55,8 @@ interface SchemaGroupView {
     template: `
     <div class="poc-shell">
         <header class="poc-header">
-            <h1>Notice of Hearing - Document Generation</h1>
-            <p>Template authoring in the Document Editor, relational mail merge with Syncfusion DocIO on the server.</p>
+            <h1>Syncfusion DOCX Editor - Document Generation</h1>
+            <p>Template authoring in the Document Editor, relational mail merge on the server.</p>
         </header>
         <div class="poc-body">
             <!-- LEFT PANEL: Merge Field Explorer (click-to-insert) -->
