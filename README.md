@@ -1,4 +1,4 @@
-# Syncfusion® Angular DOCX Editor – Document Generation
+# Syncfusion® Angular DOCX Editor – Template Designer
 
 ## Introduction
 
@@ -15,11 +15,6 @@ This sample extends the [Syncfusion® Angular DOCX Editor](https://www.syncfusio
 ## How to Run the Sample
 
 This sample has two projects that must both run: an Angular client and an ASP.NET Core backend. The merge, case search, and template APIs are served by the backend.
-
-### Prerequisites
-
-- Node.js 20.19+ or 22.12+ with npm (for the Angular client)
-- .NET SDK 10.0 (for the ASP.NET Core backend)
 
 ### 1. Start the backend
 

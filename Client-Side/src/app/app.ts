@@ -55,8 +55,8 @@ interface SchemaGroupView {
     template: `
     <div class="poc-shell">
         <header class="poc-header">
-            <h1>Syncfusion DOCX Editor - Document Generation</h1>
-            <p>Template authoring in the Document Editor, relational mail merge on the server.</p>
+            <h1>Syncfusion DOCX Editor - Template Designer</h1>
+            <p>Template authoring in the Document Editor, mail merge on the server.</p>
         </header>
         <div class="poc-body">
             <!-- LEFT PANEL: Merge Field Explorer (click-to-insert) -->
@@ -114,7 +114,7 @@ interface SchemaGroupView {
             <section class="poc-editor">
                 <ejs-documenteditorcontainer
                     #container
-                    height="700px"
+                    height="100%"
                     style="display:block"
                     [enableToolbar]="true"
                     [toolbarMode]="'Ribbon'"
@@ -158,7 +158,7 @@ interface SchemaGroupView {
                 <p class="poc-selected">Selected Cases : {{ selectedIds().size }}</p>
                 <button type="button" class="poc-btn poc-btn-primary" (click)="generate()"
                     [disabled]="selectedIds().size === 0 || generating()">
-                    {{ generating() ? 'Generating...' : 'Generate Documents' }}
+                    {{ generating() ? 'Generating...' : 'Generate Document' }}
                 </button>
                 <p class="poc-muted" *ngIf="statusMessage()">{{ statusMessage() }}</p>
             </aside>

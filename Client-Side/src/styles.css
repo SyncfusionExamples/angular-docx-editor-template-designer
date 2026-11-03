@@ -5,9 +5,10 @@
 /* POC shell layout */
 .poc-shell {
     font-family: "Segoe UI", -apple-system, BlinkMacSystemFont, Roboto, Helvetica, Arial, sans-serif;
-    min-height: 100vh;
+    height: 100vh;
     display: flex;
     flex-direction: column;
+    overflow: hidden;
 }
 
 .poc-header {
@@ -32,18 +33,23 @@
     display: flex;
     gap: 12px;
     padding: 12px;
-    align-items: flex-start;
+    align-items: stretch;
     flex: 1;
+    min-height: 0;
+    overflow: hidden;
 }
 
 .poc-panel {
     width: 240px;
-    flex-shrink: 0;
+    flex-shrink: 1;
     border: 1px solid #e5e7eb;
     border-radius: 6px;
     padding: 12px;
     background: #fff;
+    overflow-y: auto;
+    min-height: 0;
 }
+
 
 .poc-panel h2 {
     margin: 0 0 10px;
@@ -62,6 +68,8 @@
 .poc-editor {
     flex: 1;
     min-width: 0;
+    min-height: 0;
+    overflow: hidden;
 }
 
 /* Merge field explorer */
