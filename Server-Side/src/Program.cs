@@ -67,8 +67,14 @@ namespace EJ2APIServices
 
             var app = builder.Build();
 
-            // Path base kept empty: the POC serves the API from the app root.
-            app.UsePathBase("");
+            // Path base: the app (Angular UI and API) is served under this prefix. It must match
+            // the <base href> in Client-Side/src/index.html. Override with the "PathBase" setting
+            // (leave it empty to serve from the root).
+            string pathBase = builder.Configuration["PathBase"] ?? "/angular-docx-editor-template-designer";
+            if (!string.IsNullOrEmpty(pathBase))
+            {
+                app.UsePathBase(pathBase);
+            }
 
             //Register Syncfusion license
             string licenseKey = string.Empty;

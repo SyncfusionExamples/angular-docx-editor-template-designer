@@ -225,8 +225,8 @@ function coerceTypedValue(type: FieldType, value: string): string {
             <!-- CENTER: Document Editor (Ribbon mode + Mail Merge tab) -->
             <section class="poc-editor">
                 <div class="poc-preview-banner" *ngIf="previewMode()">
-                    <span><strong>Preview mode.</strong> The editor is read-only. Review the assembled document, then click <strong>Generate Document</strong> to finalize or <strong>Back to Edit</strong> to return to the template.</span>
-                    <button type="button" class="poc-btn poc-btn-banner" (click)="exitPreview()">Back to Edit</button>
+                    <span><strong>Preview mode.</strong> The editor is read-only. Review the assembled document, then click <strong>Generate Document</strong> to finalize or <strong>Open Template</strong> to return to the template.</span>
+                    <button type="button" class="poc-btn poc-btn-banner" (click)="exitPreview()">Open Template</button>
                 </div>
                 <div class="poc-action-toolbar">
                     <button type="button" class="poc-btn poc-btn-reset" (click)="reset()"
@@ -495,15 +495,16 @@ export class App implements AfterViewInit, OnDestroy {
     public customRegionName = '';
 
     private disposed = false;
+    private readOnlyTimer: number | null = null;
     /** True while a document is being opened - suppresses dirty tracking. */
     private loadingDocument = false;
     /**
      * The template (SFDT) that was in the editor when a preview opened the merged
      * output. While a preview is showing, the editor holds the MERGED document, so
-     * Generate / Export must merge THIS snapshot, and Back to Edit restores it.
+     * Generate / Export must merge THIS snapshot, while the editor shows the merged preview.
      */
     private templateSnapshot: string | null = null;
-    /** Whether the snapshot had unsaved changes (restored on Back to Edit). */
+    /** Whether the snapshot had unsaved changes (no longer restored). */
     private snapshotDirty = false;
     /** Handle of the settle timer that ends the load-suppression window. */
     private loadingSettleHandle: number | null = null;
@@ -706,10 +707,21 @@ export class App implements AfterViewInit, OnDestroy {
      * transition calls this so the banner and the editing state stay in sync.
      */
     private applyEditorReadOnly(readOnly: boolean): void {
-        const editor = this.editor;
-        if (editor && typeof editor.isReadOnly === 'boolean') {
-            try { editor.isReadOnly = readOnly; } catch { /* the editor may not be ready yet */ }
+        // Changing isReadOnly while a freshly opened document is still being laid out makes
+        // the editor throw asynchronously ("Cannot read properties of undefined (reading
+        // 'length')"), which a try/catch here cannot catch, and the editor stays locked.
+        // So wait until the document has settled, and let the latest request win.
+        if (this.readOnlyTimer !== null) {
+            clearTimeout(this.readOnlyTimer);
         }
+        this.readOnlyTimer = window.setTimeout(() => {
+            this.readOnlyTimer = null;
+            if (this.disposed) { return; }
+            const editor = this.editor;
+            if (editor && typeof editor.isReadOnly === 'boolean' && editor.isReadOnly !== readOnly) {
+                try { editor.isReadOnly = readOnly; } catch { /* the editor may not be ready yet */ }
+            }
+        }, 400);
     }
 
     /**
@@ -833,9 +845,17 @@ export class App implements AfterViewInit, OnDestroy {
      * the bundled default template.
      */
     public reset(): void {
+        this.loadTemplateFromScratch('Reset: the template was created from scratch.');
+    }
+
+    /**
+     * Shared by Reset and "Open Template" (leaving a preview): drops every transient
+     * state and loads the template created from scratch.
+     */
+    private loadTemplateFromScratch(doneMessage: string): void {
         if (this.resetting()) { return; }
         this.resetting.set(true);
-        this.statusMessage.set('Resetting: creating the template from scratch...');
+        this.statusMessage.set('Creating the template from scratch...');
 
         // Drop every transient state so the editor and tracking signals agree with
         // the freshly loaded default template.
@@ -857,7 +877,7 @@ export class App implements AfterViewInit, OnDestroy {
             this.savedFileExists.set(result.exists !== false);
             this.editorHoldsDefaultTemplate = true;
             this.editorHoldsTemplate.set(true);
-            this.statusMessage.set('Reset: the template was created from scratch.');
+            this.statusMessage.set(doneMessage);
         }).catch(() => {
             this.statusMessage.set('Could not reload the default template.');
         }).finally(() => {
@@ -1029,7 +1049,7 @@ export class App implements AfterViewInit, OnDestroy {
      * Preview click: run the mail merge using the selected case data + supporting
      * documents, then display the assembled SFDT in the editor in viewer/read-only
      * mode. The user can review and either click Generate Document to finalize or
-     * Back to Edit to return to the template.
+     * Open Template to return to the template.
      *
      * The merge call is identical to Generate - same endpoint, same data - only the
      * editor's mode differs.
@@ -1131,37 +1151,8 @@ export class App implements AfterViewInit, OnDestroy {
      */
     public exitPreview(): void {
         if (!this.previewMode()) { return; }
-        this.previewMode.set(false);
-        this.previewedSfdt = null;
-
-        // Restore exactly what was in the editor before the preview (including unsaved
-        // edits, and a template created from scratch that has no file yet).
-        const snapshot = this.templateSnapshot;
-        const wasDirty = this.snapshotDirty;
-        this.templateSnapshot = null;
-        if (snapshot) {
-            this.openInEditor(snapshot);
-            this.documentDirty.set(wasDirty);
-            this.editorHoldsTemplate.set(true);
-            this.statusMessage.set('Returned to template editing.');
-            return;
-        }
-
-        // No snapshot (should not happen): reload the saved file, else start from scratch.
-        const id = this.currentDocumentId;
-        const fromScratch = () => this.api.getDefaultTemplate().then(r => r.sfdt);
-        const load: Promise<string> = id
-            ? this.api.getTemplate(id).catch(() => fromScratch())
-            : fromScratch();
-
-        load.then(sfdt => {
-            if (this.disposed) { return; }
-            this.openInEditor(sfdt);
-            this.editorHoldsTemplate.set(true);
-            this.statusMessage.set('Returned to template editing.');
-        }).catch(() => {
-            this.statusMessage.set('Could not reload the template.');
-        });
+        // Same as Reset: leave preview and load the template created from scratch.
+        this.loadTemplateFromScratch('Template opened (created from scratch).');
     }
 
     /**
@@ -1189,8 +1180,8 @@ export class App implements AfterViewInit, OnDestroy {
             }
 
             if (mode === 'preview') {
-                // Remember the template (and whether it had unsaved edits) so Back to Edit
-                // and Generate can use it while the editor shows the merged output.
+                // Remember the template (and whether it had unsaved edits) so Generate
+                // can use it while the editor shows the merged output.
                 if (!this.templateSnapshot) {
                     this.templateSnapshot = templateSfdt ?? null;
                     this.snapshotDirty = this.documentDirty();

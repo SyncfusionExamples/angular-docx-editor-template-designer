@@ -2,7 +2,7 @@
 
 ## Introduction
 
-This sample extends the [Syncfusion® Angular DOCX Editor](https://www.syncfusion.com/docx-editor-sdk/angular-docx-editor?utm_source=github&utm_medium=listing&utm_campaign=github-github-documenteditor-examples) and an ASP.NET Core backend into a legal document generation workflow. A user authors a "Notice of Hearing" template in the Angular Document Editor, searches for case records, selects one or more cases, and generates a merged document with Syncfusion DocIO on the server. The merged result opens directly inside the editor. It is intended for developers building document generation for business records such as court cases and their parties.
+This sample extends the [Syncfusion® Angular DOCX Editor](https://www.syncfusion.com/docx-editor-sdk/angular-docx-editor?utm_source=github&utm_medium=listing&utm_campaign=github-github-documenteditor-examples) and an ASP.NET Core backend into a legal document generation workflow. A user authors a "Notice of Hearing" template in the Angular Document Editor, searches for case records, selects one or more cases, and generates a merged document with Syncfusion .NET Word Library (DocIO) on the server. The merged result opens directly inside the editor. It is intended for developers building document generation for business records such as court cases and their parties.
 
 ## Project Features
 
@@ -93,7 +93,7 @@ Each flow below shows who does what: **User**, **Client** (the Angular app) and 
 ### 5. Edit and save a template
 
 1. **User** edits the template created from scratch and inserts merge fields or regions from the left panel. This part runs in the browser only.
-2. **User** clicks **Save Document**. (Before the first save the button is enabled even without edits.)
+2. **User** clicks **Save Document**. 
 3. **Client** sends the document to `POST /api/templates/{id}/save`.
 4. **Server** converts it to DOCX and writes `Notice of Hearing.docx` in the templates folder, creating it on the first save and overwriting it afterwards.
 5. **Client** shows a "saved" message and refreshes the Template list, so the saved document now appears in it.
