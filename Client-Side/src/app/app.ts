@@ -234,7 +234,7 @@ function coerceTypedValue(type: FieldType, value: string): string {
                         {{ resetting() ? 'Resetting...' : 'Reset' }}
                     </button>
                     <button type="button" class="poc-btn poc-btn-save" (click)="save()"
-                        [disabled]="saving() || !editorHoldsTemplate() || !currentDocumentId || !documentDirty()">
+                        [disabled]="saving() || !editorHoldsTemplate() || !currentDocumentId || (!documentDirty() && savedFileExists())">
                         {{ saving() ? 'Saving...' : (documentDirty() ? 'Save Document *' : 'Save Document') }}
                     </button>
                     <button type="button" class="poc-btn poc-btn-preview" (click)="preview()"
@@ -278,8 +278,8 @@ function coerceTypedValue(type: FieldType, value: string): string {
                 <h2>Template</h2>
                 <div class="poc-search-row">
                     <select class="poc-input" [(ngModel)]="selectedTemplateId" name="templateSelect"
-                        [disabled]="loadingTemplate() || templates().length === 0">
-                        @for (t of templates(); track t.id) {
+                        [disabled]="loadingTemplate() || loadableTemplates().length === 0">
+                        @for (t of loadableTemplates(); track t.id) {
                             <option [value]="t.id">{{ t.displayName }}</option>
                         }
                     </select>
@@ -288,7 +288,7 @@ function coerceTypedValue(type: FieldType, value: string): string {
                         {{ loadingTemplate() ? 'Loading...' : 'Load' }}
                     </button>
                 </div>
-                <p class="poc-muted">Replace the main template in the editor. The "Notice of Hearing" loads by default.</p>
+                <p class="poc-muted">The editor always starts from a template created from scratch. Save it, then open the saved document from this list.</p>
 
                 <div class="poc-divider"></div>
 
@@ -456,6 +456,12 @@ export class App implements AfterViewInit, OnDestroy {
     public supportingDocuments = computed(() => this.templates().filter(t => !t.isMainTemplate));
 
     /**
+     * Templates that exist as files in the templates folder and can be opened from the
+     * dropdown. The main template appears here only after it has been saved once.
+     */
+    public loadableTemplates = computed(() => this.templates().filter(t => t.exists !== false));
+
+    /**
      * Id (file name) of the template currently open in the editor. Tracked so the
      * "Save Document" action knows which file in the templates folder to overwrite.
      * Empty when the editor holds a document that is not a template (e.g. a merged
@@ -466,6 +472,12 @@ export class App implements AfterViewInit, OnDestroy {
     public editorHoldsTemplate = signal(false);
     /** True when the editor content differs from the last loaded/saved state. */
     public documentDirty = signal(false);
+    /**
+     * True when the file Save writes to already exists in the templates folder. While it
+     * does not, Save is enabled even without edits, so the template created from scratch
+     * can be saved as-is to create the file.
+     */
+    public savedFileExists = signal(true);
     public saving = signal(false);
     public exportingPdf = signal(false);
     public convertingPdf = signal(false);
@@ -485,6 +497,14 @@ export class App implements AfterViewInit, OnDestroy {
     private disposed = false;
     /** True while a document is being opened - suppresses dirty tracking. */
     private loadingDocument = false;
+    /**
+     * The template (SFDT) that was in the editor when a preview opened the merged
+     * output. While a preview is showing, the editor holds the MERGED document, so
+     * Generate / Export must merge THIS snapshot, and Back to Edit restores it.
+     */
+    private templateSnapshot: string | null = null;
+    /** Whether the snapshot had unsaved changes (restored on Back to Edit). */
+    private snapshotDirty = false;
     /** Handle of the settle timer that ends the load-suppression window. */
     private loadingSettleHandle: number | null = null;
 
@@ -527,6 +547,7 @@ export class App implements AfterViewInit, OnDestroy {
             this.editorHoldsDefaultTemplate = true;
             this.editorHoldsTemplate.set(true);
             this.currentDocumentId = result.fileName || this.mainTemplateId || 'Notice of Hearing.docx';
+            this.savedFileExists.set(result.exists !== false);
             this.markClean();
         }).catch(() => {
             this.statusMessage.set('Could not load the default template from /api/template.');
@@ -543,13 +564,33 @@ export class App implements AfterViewInit, OnDestroy {
             if (this.editorHoldsDefaultTemplate && !this.currentDocumentId) {
                 this.currentDocumentId = this.mainTemplateId || 'Notice of Hearing.docx';
             }
-            // Default the dropdown to the first template so the UI is never empty.
-            if (items.length > 0 && !this.selectedTemplateId) {
-                this.selectedTemplateId = items[0].id;
+            // Default the dropdown to the first SAVED template (the main template is
+            // listed only once it exists as a file).
+            const loadable = items.filter(t => t.exists !== false);
+            if (loadable.length > 0 && !this.selectedTemplateId) {
+                this.selectedTemplateId = loadable[0].id;
             }
         }).catch(() => {
             this.statusMessage.set('Could not list supporting documents from /api/templates.');
         });
+    }
+
+    /**
+     * Re-reads the template list (the folder is read on every call). Called after a
+     * save so a newly created file appears in the dropdown and can be opened again.
+     */
+    private refreshTemplateList(selectId?: string): void {
+        this.api.listTemplates().then(items => {
+            if (this.disposed) { return; }
+            this.templates.set(items);
+            this.mainTemplateId = items.find(t => t.isMainTemplate)?.id ?? this.mainTemplateId;
+            const loadable = items.filter(t => t.exists !== false);
+            if (selectId && loadable.some(t => t.id === selectId)) {
+                this.selectedTemplateId = selectId;
+            } else if (!loadable.some(t => t.id === this.selectedTemplateId)) {
+                this.selectedTemplateId = loadable.length > 0 ? loadable[0].id : '';
+            }
+        }).catch(() => { /* the list is refreshed again on the next page load */ });
     }
 
     ngOnDestroy(): void {
@@ -762,10 +803,12 @@ export class App implements AfterViewInit, OnDestroy {
             // Remember which file the editor now holds so "Save Document" can
             // overwrite it. Leaving preview mode makes sense here too.
             this.currentDocumentId = id;
+            this.savedFileExists.set(true);
             this.editorHoldsDefaultTemplate = false;
             this.editorHoldsTemplate.set(true);
             this.previewMode.set(false);
             this.previewedSfdt = null;
+            this.templateSnapshot = null;
             this.statusMessage.set(`Loaded template '${id}'.`);
         }).catch(() => {
             this.statusMessage.set(`Could not load template '${id}'.`);
@@ -792,13 +835,14 @@ export class App implements AfterViewInit, OnDestroy {
     public reset(): void {
         if (this.resetting()) { return; }
         this.resetting.set(true);
-        this.statusMessage.set('Resetting to the default template...');
+        this.statusMessage.set('Resetting: creating the template from scratch...');
 
         // Drop every transient state so the editor and tracking signals agree with
         // the freshly loaded default template.
         this.previewMode.set(false);
         this.applyEditorReadOnly(false);
         this.previewedSfdt = null;
+        this.templateSnapshot = null;
         this.previewing.set(false);
         this.generating.set(false);
         this.exportingPdf.set(false);
@@ -810,9 +854,10 @@ export class App implements AfterViewInit, OnDestroy {
             // The editor now holds the default template again - it is savable, not a
             // merged output.
             this.currentDocumentId = result.fileName || this.mainTemplateId || 'Notice of Hearing.docx';
+            this.savedFileExists.set(result.exists !== false);
             this.editorHoldsDefaultTemplate = true;
             this.editorHoldsTemplate.set(true);
-            this.statusMessage.set('Reset to the default template.');
+            this.statusMessage.set('Reset: the template was created from scratch.');
         }).catch(() => {
             this.statusMessage.set('Could not reload the default template.');
         }).finally(() => {
@@ -857,7 +902,10 @@ export class App implements AfterViewInit, OnDestroy {
         this.api.saveTemplate(id, sfdt).then(result => {
             // The on-disk file now matches the editor content.
             this.markClean();
+            this.savedFileExists.set(true);
             this.statusMessage.set(`Saved '${result.displayName}' to the templates folder.`);
+            // A first save creates the file: list it so it can be opened from the dropdown.
+            this.refreshTemplateList(result.id);
         }).catch(() => {
             this.statusMessage.set(`Could not save '${id}'. Check the service log.`);
         }).finally(() => {
@@ -910,6 +958,7 @@ export class App implements AfterViewInit, OnDestroy {
             this.editorHoldsTemplate.set(false);
             this.previewMode.set(false);
             this.previewedSfdt = null;
+            this.templateSnapshot = null;
             this.statusMessage.set(`Converted '${file.name}' to Word and opened it in the editor.`);
         }).catch((err: unknown) => {
             let message: string;
@@ -950,6 +999,7 @@ export class App implements AfterViewInit, OnDestroy {
             this.editorHoldsTemplate.set(false);
             this.previewMode.set(false);
             this.previewedSfdt = null;
+            this.templateSnapshot = null;
             this.statusMessage.set('Converted the XSL template to a Word document and opened it in the editor.');
         }).catch((err: unknown) => {
             let message: string;
@@ -1005,11 +1055,11 @@ export class App implements AfterViewInit, OnDestroy {
     public generate(): void {
         if (this.selectedIds().size === 0) { return; }
 
-        // Leave preview mode before the merge request, so the editor is in the right
-        // state to receive the final document.
-        this.previewMode.set(false);
+        // If a preview is showing, stay in preview mode until the merge succeeds (the
+        // success handler leaves it). Cancelling the missing-value dialog then leaves
+        // the editor exactly as it was. The merge uses the template snapshot, not the
+        // merged preview that the editor currently holds.
         this.previewedSfdt = null;
-        this.applyEditorReadOnly(false);
 
         this.generating.set(true);
         this.statusMessage.set('');
@@ -1035,7 +1085,7 @@ export class App implements AfterViewInit, OnDestroy {
      * a PDF download.
      */
     private runExportPdf(additionalMergeData: AdditionalMergeValue[]): void {
-        const templateSfdt = this.editor?.serialize();
+        const templateSfdt = this.templateSnapshot ?? this.editor?.serialize();
         const request = {
             caseIds: Array.from(this.selectedIds()),
             additionalMergeData,
@@ -1084,16 +1134,29 @@ export class App implements AfterViewInit, OnDestroy {
         this.previewMode.set(false);
         this.previewedSfdt = null;
 
-        // Reload the template the user was editing before the preview started.
+        // Restore exactly what was in the editor before the preview (including unsaved
+        // edits, and a template created from scratch that has no file yet).
+        const snapshot = this.templateSnapshot;
+        const wasDirty = this.snapshotDirty;
+        this.templateSnapshot = null;
+        if (snapshot) {
+            this.openInEditor(snapshot);
+            this.documentDirty.set(wasDirty);
+            this.editorHoldsTemplate.set(true);
+            this.statusMessage.set('Returned to template editing.');
+            return;
+        }
+
+        // No snapshot (should not happen): reload the saved file, else start from scratch.
         const id = this.currentDocumentId;
+        const fromScratch = () => this.api.getDefaultTemplate().then(r => r.sfdt);
         const load: Promise<string> = id
-            ? this.api.getTemplate(id)
-            : this.api.getDefaultTemplate().then(r => r.sfdt);
+            ? this.api.getTemplate(id).catch(() => fromScratch())
+            : fromScratch();
 
         load.then(sfdt => {
             if (this.disposed) { return; }
             this.openInEditor(sfdt);
-            // The editor holds a template again, so it can be saved.
             this.editorHoldsTemplate.set(true);
             this.statusMessage.set('Returned to template editing.');
         }).catch(() => {
@@ -1107,7 +1170,9 @@ export class App implements AfterViewInit, OnDestroy {
      * editable document (generate).
      */
     private runMerge(mode: 'preview' | 'generate', additionalMergeData: AdditionalMergeValue[]): void {
-        const templateSfdt = this.editor?.serialize();
+        // While a preview is showing the editor holds the merged output, so merge the
+        // template that was in the editor before the preview instead.
+        const templateSfdt = this.templateSnapshot ?? this.editor?.serialize();
         const request = {
             caseIds: Array.from(this.selectedIds()),
             additionalMergeData,
@@ -1124,6 +1189,12 @@ export class App implements AfterViewInit, OnDestroy {
             }
 
             if (mode === 'preview') {
+                // Remember the template (and whether it had unsaved edits) so Back to Edit
+                // and Generate can use it while the editor shows the merged output.
+                if (!this.templateSnapshot) {
+                    this.templateSnapshot = templateSfdt ?? null;
+                    this.snapshotDirty = this.documentDirty();
+                }
                 this.previewedSfdt = result.mergedSfdt;
                 this.previewMode.set(true);
                 this.openInEditor(result.mergedSfdt);
@@ -1136,6 +1207,7 @@ export class App implements AfterViewInit, OnDestroy {
             } else {
                 this.previewMode.set(false);
                 this.previewedSfdt = null;
+                this.templateSnapshot = null;
                 this.openInEditor(result.mergedSfdt);
                 // The editor now holds the GENERATED output, not a template - saving it
                 // back would overwrite a template file with merged content.

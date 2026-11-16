@@ -6,79 +6,132 @@ This sample extends the [Syncfusion® Angular DOCX Editor](https://www.syncfusio
 
 ## Project Features
 
-- **Merge field explorer** — click a case or party field in the left panel to insert a real merge field into the template, or create custom fields and regions with a user-specified name.
-- **Case search and selection** — search cases by case number or caption, select the records to merge, and load only the selected business data.
-- **Standard and nested repeating regions** — a simple `Parties` region repeats once per party; a `Case` region wrapping it repeats once per selected case and resolves case fields inside each party block.
-- **Missing value prompting** — when a template field has no data (for example `JudgeName` or `NoticeDate`), generation pauses, the user is prompted for the value, and the merge runs again with the entered data.
-- **In-editor result preview** — the merged document opens directly in the Document Editor instead of downloading a file.
+- **Merge field panel** — click a field to insert a real merge field into the template, or add custom fields and regions by name.
+- **Case search and selection** — search by case number or caption; full details load only for the selected cases.
+- **Repeating regions** — one block per party, one block per case, all in a single document.
+- **Missing value prompt** — fields with no data are asked for in a dialog (date picker, number box, Yes/No checkbox), then the merge re-runs.
+- **Supporting documents** — any `.docx` dropped in the templates folder can be appended to the merged output.
+- **Preview, Generate, Export as PDF** — the merged document opens in the editor, or downloads as PDF.
+- **Open PDF Document** and **XSLT to Word Document** — convert a PDF or an XSLT stylesheet into an editable Word template.
 
 ## How to Run the Sample
 
-This sample has two projects that must both run: an Angular client and an ASP.NET Core backend. The merge, case search, and template APIs are served by the backend.
-
-### 1. Start the backend
-
-The backend serves the case APIs (`/api/schema`, `/api/cases/...`, `/api/generate`) and the Document Editor processing endpoints (`/api/documenteditor/...`).
+Both projects must run: the ASP.NET Core backend and the Angular client.
 
 ```bash
+# 1. Backend  (http://localhost:62870)
 cd Server-Side/src
 dotnet restore
 dotnet run
-```
 
-The `EJ2APIServices` profile in `Properties/launchSettings.json` starts the app at `http://localhost:62870/`. If you host it elsewhere, note the base URL for the next step.
-
-### 2. Configure the client
-
-The Angular dev-server proxy forwards `/api` calls to the backend. The setting lives in `Client-Side/proxy.conf.json`:
-
-```json
-{
-  "/api": {
-    "target": "http://localhost:62870",
-    "secure": false,
-    "changeOrigin": false
-  }
-}
-```
-
-Change `target` only if your backend uses a different base URL. With the default `dotnet run` command above, no change is required.
-
-### 3. Start the client
-
-```bash
+# 2. Client   (http://localhost:4200)
 cd Client-Side
 npm install
 npm start
 ```
 
-`npm start` runs `ng serve` in watch mode. Open the URL printed in the terminal (by default `http://localhost:4200/`).
+The Angular dev server forwards `/api` calls to the backend. The target is in `Client-Side/proxy.conf.json` and must match the backend URL in `Server-Side/src/Properties/launchSettings.json` (both use `http://localhost:62870`). Add your Syncfusion license key in `Server-Side/src/Program.cs`.
 
-### Using the sample
+The editor always starts from a template created from scratch (also after **Reset**). Templates are saved to and read from `Server-Side/src/wwwroot/Templates`: **Save Document** creates `Notice of Hearing.docx` there, and you open the saved document again from the Template list. Every other `.docx` in the folder is a supporting document.
 
-The template opens automatically. Search by case number or caption (for example `Smith`), select one or more cases, and click **Generate Documents**. If the template contains fields without data (the bundled template uses `JudgeName` and `NoticeDate` for this), enter the values in the prompt and continue; the merged document opens in the editor.
+## How Each Requirement Is Achieved
 
-Editing the template, inserting fields from the left panel, and custom field/region creation are client-side editor features and work as soon as the page loads; search and generation require the backend.
+| # | Requirement | How it is achieved | Where |
+|---|---|---|---|
+| 1 | Prompt for missing values, then re-run the merge | The server finds fields with no data and returns them without creating a document. The client shows a dialog, then resends the request with the entered values. | `DocumentMergeService.cs` (`BeforeClearField`), `CasesController.Generate`, `app.ts` (`openMissingDialog`, `submitMissingValues`) |
+| 2 | Add new merge fields and regions | The left panel inserts a Word merge field, or a `BeginGroup` / `EndGroup` pair for a region, with any name. | `app.ts` (`insertMergeField`, `insertCustomField`, `insertCustomRegion`) |
+| 3 | Targeted data retrieval | Search returns only case summaries. Full details are loaded only for the selected case ids. | `CaseRepository.cs`, `CasesController.cs` |
+| 4 | One block per party | The `Parties` region repeats once per party. | `DocumentMergeService.cs` (`BuildPartyGroupTable`) |
+| 5 | Case fields inside the party block | `«Case:CaseNumber»` is resolved from the parent case using nested (relational) mail merge. | `DocumentMergeService.cs` (`BuildNestedDataSet`, `ExecuteNestedGroup`) |
+| 6 | Several cases in one document | Each selected case is one row of the `Case` table, so the case block repeats per case and the party block per party. | `DocumentMergeService.cs` (`BuildNestedDataSet`) |
+| 7 | Type-based prompts (date, number, Yes/No) | Each field has a type that picks the dialog control and validation. Yes/No merges as "Yes" / "No". | `Models/FieldSchema.cs` (`MergeFieldConfig`), `app.ts` (`validateTypedValue`) |
+| 8 | Merge fields defined in one place | All field names, types, labels and regions live in one class; the client and the merge code read from it. | `Models/FieldSchema.cs` (`MergeFieldConfig`) |
+| 9 | Supporting documents | Selected `.docx` files are appended to the main template, then merged once. The list is read from the folder, so new files appear after a reload. | `DocumentMergeService.MergeAsDocument`, `SupportingDocumentRepository.cs` |
+
+## How It Works, Step by Step
+
+Each flow below shows who does what: **User**, **Client** (the Angular app) and **Server** (ASP.NET Core).
+
+### 1. Start up
+
+1. **User** opens the page.
+2. **Client** asks the server for the merge field list (`GET /api/schema`).
+3. **Server** returns each field's name, type and label.
+4. **Client** asks for the starting template (`GET /api/template`) and the template list (`GET /api/templates`).
+5. **Server** builds the template from scratch and returns it, with the name of the file Save writes to. It also returns the saved documents found in the templates folder.
+6. **Client** opens the template in the editor and fills the Merge Fields panel and the document list.
+
+### 2. Search and select cases
+
+1. **User** types a keyword and clicks **Search**.
+2. **Client** calls `GET /api/cases/search?keyword=...`.
+3. **Server** returns matching case summaries only (no parties).
+4. **Client** shows the results table.
+5. **User** ticks the cases to merge. The client keeps only their ids.
+
+### 3. Generate or preview, with missing values
+
+1. **User** selects cases (and optionally supporting documents), then clicks **Preview** or **Generate Document**.
+2. **Client** sends the template as it is in the editor, the case ids and the document ids to `POST /api/generate`.
+3. **Server** loads only the selected cases, adds the supporting documents to the template, and runs the mail merge.
+4. If every field has data, go to step 9. Otherwise **Server** replies with the list of missing fields and creates no document.
+5. **Client** shows a dialog with one input per missing field: a date picker, a number box, a Yes/No checkbox or a text box, chosen from the field's type.
+6. **User** enters the values and clicks **Continue**. Invalid values block the button.
+7. **Client** sends the same request again, now with the entered values.
+8. **Server** merges again using those values.
+9. **Server** returns the merged document.
+10. **Client** opens it in the editor (read-only for Preview, editable for Generate).
+
+### 4. Export as PDF
+
+1. **User** clicks **Export as PDF**.
+2. **Client** sends the same request as Generate to `POST /api/generate-pdf`.
+3. If values are missing, the same dialog and re-send as in flow 3 happen.
+4. **Server** merges, converts the Word document to PDF and returns the file.
+5. **Client** downloads it in the browser.
+
+### 5. Edit and save a template
+
+1. **User** edits the template created from scratch and inserts merge fields or regions from the left panel. This part runs in the browser only.
+2. **User** clicks **Save Document**. (Before the first save the button is enabled even without edits.)
+3. **Client** sends the document to `POST /api/templates/{id}/save`.
+4. **Server** converts it to DOCX and writes `Notice of Hearing.docx` in the templates folder, creating it on the first save and overwriting it afterwards.
+5. **Client** shows a "saved" message and refreshes the Template list, so the saved document now appears in it.
+6. Later, **User** picks the saved template in the list and clicks **Load**; **Client** calls `GET /api/templates/{id}` and **Server** returns the saved document, which opens in the editor.
+
+Save is disabled when the editor holds merged, previewed or converted content, so a template file cannot be overwritten by mistake.
+
+### 6. Convert a PDF or an XSLT file to a template
+
+1. **User** clicks **Open PDF Document** and chooses a file, or clicks **XSLT to Word Document**.
+2. **Client** sends the PDF to `POST /api/pdf/convert`, or asks `POST /api/templates/xsl-to-word` to convert `InputXSL.txt` from the templates folder.
+3. **Server** converts the PDF to Word, or turns the stylesheet into a Word template (`for-each` becomes a merge region, `value-of` becomes a merge field).
+4. **Server** returns the Word document.
+5. **Client** opens it in the editor. It is not tied to a file, so Save stays disabled until it is saved as a template.
+
+### 7. Reset
+
+1. **User** clicks **Reset**.
+2. **Client** clears the preview state and calls `GET /api/template`.
+3. **Server** builds the template from scratch again (the saved file is not used).
+4. **Client** opens it in the editor, discarding unsaved changes.
 
 ## APIs Used
 
-Custom sample APIs (served by the backend's `CasesController`):
-
-| API / Endpoint | HTTP Method | Purpose |
+| Endpoint | Method | Purpose |
 |---|---|---|
-| `/api/schema` | GET | Merge field schema for the explorer panel (field names and types) |
-| `/api/template` | GET | Bundled sample template, opened by the editor on application load |
-| `/api/cases/search?keyword=` | GET | Case search by case number or caption; returns matching case summaries |
-| `/api/cases/{caseId}` | GET | Full case record (case details plus parties) for a selected case |
-| `/api/generate` | POST | Mail merge for the selected cases; returns either missing-field prompts or the merged document as SFDT |
-
-Document Editor processing service (`DocumentEditorController`, used through the editor's `serviceUrl` of `/api/documenteditor/` in `Client-Side/src/app/app.ts`):
-
-| API / Endpoint | HTTP Method | Purpose |
-|---|---|---|
-| `/api/documenteditor/import` | POST | Converts an uploaded document to the editor's internal format |
-| `/api/documenteditor/spellcheck` | POST | Spell check support for the editor |
-| `/api/documenteditor/paste` | POST | Paste formatting (HTML to document conversion) |
+| `/api/schema` | GET | Merge field names, types and labels |
+| `/api/template` | GET | The template created from scratch, plus the file name Save writes to |
+| `/api/templates` | GET | List the saved templates and supporting documents |
+| `/api/templates/{id}` | GET | Load a template |
+| `/api/templates/{id}/save` | POST | Save the edited template |
+| `/api/templates/xsl-to-word` | POST | Convert an XSLT stylesheet to a Word template |
+| `/api/cases/search?keyword=` | GET | Search cases |
+| `/api/cases/{caseId}` | GET | Full case with parties |
+| `/api/generate` | POST | Mail merge; returns missing fields or the merged document |
+| `/api/generate-pdf` | POST | Mail merge returned as a PDF |
+| `/api/pdf/convert` | POST | Convert a PDF to a Word document |
+| `/api/documenteditor/*` | POST | The editor's own service (import, spell check, paste) |
 
 ## Resources
 

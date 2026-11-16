@@ -68,6 +68,8 @@ export interface SupportingDocument {
     order: number;
     /** True for the default main template ("Notice of Hearing"). */
     isMainTemplate?: boolean;
+    /** False when the file has not been saved to the templates folder yet. */
+    exists?: boolean;
 }
 
 /** Result of a successful template save. */

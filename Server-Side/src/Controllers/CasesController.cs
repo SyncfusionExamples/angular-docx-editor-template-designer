@@ -59,14 +59,16 @@ namespace EJ2APIServices.Controllers
         }
 
         /// <summary>
-        /// The default main template ("Notice of Hearing") loaded from the configured
-        /// templates folder, serialized as SFDT. The Angular editor opens this on
-        /// application start so the app never starts blank.
+        /// The template the editor opens on application start and after Reset. It is
+        /// ALWAYS created from scratch (DocumentMergeService.BuildSampleTemplate) - the
+        /// "Notice of Hearing" DOCX file in the templates folder is never loaded here.
         ///
-        /// If the configured templates folder does not contain a "Notice of Hearing.docx"
-        /// (e.g. before the user has dropped the template pack into wwwroot/Templates),
-        /// this endpoint falls back to the bundled DocIO-generated sample template so the
-        /// app still works for a developer who has not yet added the customer-supplied files.
+        /// That file exists only as the target of "Save Document": the user saves the
+        /// template to it, then opens it again from the Template dropdown
+        /// (GET /api/templates/{id}).
+        ///
+        /// The response also tells the client which file name Save writes to and
+        /// whether that file exists yet.
         /// </summary>
         [HttpGet]
         [Route("/api/template")]
@@ -79,32 +81,12 @@ namespace EJ2APIServices.Controllers
                 folder,
                 _config["MainTemplateFileName"]);
 
-            string sfdt;
-            if (mainPath != null)
-            {
-                try
-                {
-                    sfdt = DocumentMergeService.LoadDocxAsSfdt(mainPath);
-                }
-                catch (Exception)
-                {
-                    sfdt = DocumentMergeService.BuildSampleTemplateSfdt();
-                }
-            }
-            else
-            {
-                sfdt = DocumentMergeService.BuildSampleTemplateSfdt();
-            }
-
-            // The id tells the client which file "Save Document" writes to. When the
-            // file does not exist yet the server still reports its name, so the user
-            // can save the built-in sample to disk and keep editing from there.
             var fileName = SupportingDocumentRepository.GetMainTemplateFileName(
                 _config["MainTemplateFileName"]);
 
             return Ok(new
             {
-                sfdt,
+                sfdt = DocumentMergeService.BuildSampleTemplateSfdt(),
                 fileName,
                 exists = mainPath != null
             });
