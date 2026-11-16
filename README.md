@@ -116,6 +116,20 @@ Save is disabled when the editor holds merged, previewed or converted content, s
 3. **Server** builds the template from scratch again (the saved file is not used).
 4. **Client** opens it in the editor, discarding unsaved changes.
 
+While a preview is showing, the banner button **Open Template** does the same as Reset: it leaves the preview and loads the template created from scratch.
+
+### 8. How a field's type becomes a prompt control
+
+1. **Define the fields once.** One class lists every merge field with its type (text, date, number or yes/no), a label and any rules, such as whole numbers only. *Where:* `Server-Side/src/Models/FieldSchema.cs` (`MergeFieldConfig`).
+2. **The app loads that list.** The server exposes it and the client turns it into a lookup table when the page starts. *Where:* `GET /api/schema` in `CasesController.cs` (`Schema()`); `getSchema()` in `case-api.service.ts`; `buildFieldMeta()` in `app.ts`.
+3. **The user starts a merge** with Preview or Generate. *Where:* `runMerge()` in `app.ts`; `Generate()` in `CasesController.cs`.
+4. **The server reports missing values.** DocIO raises an event for each field without data, and the server returns the list of missing fields instead of failing. *Where:* `BeforeClearField` and `BeforeClearGroupField` in `DocumentMergeService.cs`.
+5. **The dialog picks a control for each missing field** by looking up its type: a date picker, a number-only input that checks the rules, a Yes/No checkbox, or a text box. An unknown field gets a text box. *Where:* `openMissingDialog()` and the `@switch (item.type)` template in `app.ts`; number checks in `validateTypedValue()`.
+6. **The user enters the values** and clicks **Continue**. *Where:* `submitMissingValues()` in `app.ts`.
+7. **The values go back to the server.** A date is sent as plain text and the checkbox as true or false; the server merges them and writes Yes or No for the checkbox. *Where:* `coerceTypedValue()` in `app.ts`; `FormatSuppliedValue()` in `DocumentMergeService.cs`.
+
+To change a field's type, edit its entry in `MergeFieldConfig`. The dialog follows automatically.
+
 ## APIs Used
 
 | Endpoint | Method | Purpose |
